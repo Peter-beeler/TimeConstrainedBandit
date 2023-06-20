@@ -3,7 +3,7 @@ import random
 import numpy as np
 
 # config parameters
-num_restaurant = 10 # how many arms we have
+num_restaurant = 100 # how many arms we have
 normal_ratio = 1
 file_path = "trans_config.npy"
 file_path2 = "times_config.npy"
@@ -32,12 +32,11 @@ for i in range(num_normal_trans):
     x2 = random.random()
     x3 = 1
     x4 = 1
-    randomlist = random.sample(range(0, 60), inspect_times * 2)
+    act_win = random.randint(0, 10)
 
     tmp.append([[x1, 1 - x1], [x2, 1 - x2]])
     tmp.append([[x3, 1 - x3], [x4, 1 - x4]])
-    randomlist.sort()
-    times.append(randomlist)
+    times.append([act_win, act_win + 1])
     config.append(tmp)
 
 config = np.array(config)

@@ -13,3 +13,9 @@ def reward_whittle(arms):
     for arm in arms:
         reward += arm.reward_whittle()
     return reward
+
+def reward_mix_whittle(arms):
+    reward = 0
+    for arm in arms:
+        reward += arm.reward_mix_whittle()
+    return reward

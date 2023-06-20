@@ -93,7 +93,7 @@ delta = Decimal(1e-100)
 #         return False
 
 @jit
-def value_penalized(m, num_states, P0, P1, traj_passive, traj_active, rewards, discount=1):
+def value_penalized(m, num_states, traj_passive, traj_active, rewards, discount=1):
     states = [i for i in range(num_states)]
     max_iter = 10000  # Maximum number of iterations
     V = np.zeros(num_states)
@@ -125,8 +125,36 @@ def value_penalized(m, num_states, P0, P1, traj_passive, traj_active, rewards, d
         H1[i] = h1
     return np.subtract(H0, H1)
 
+
 @jit
-def binary_search(num_states, P0, P1,  traj_passive, traj_active, rewards, discount):
+def value_penalized_fullob(m, num_states, traj_passive, traj_active, rewards, discount=1):
+    states = [i for i in range(num_states)]
+    max_iter = 10000  # Maximum number of iterations
+    V = np.zeros(num_states)
+    H0 = np.zeros(num_states)
+    H1 = np.zeros(num_states)
+
+    for i in range(max_iter):
+        for s in states:
+            h0 = (1 - discount) * rewards[s]
+            h1 = (1 - discount) * rewards[s]
+            for next_state in states:
+                h0 += traj_passive[s][next_state] * V[next_state]
+                h1 += traj_active[s][next_state] * V[next_state]
+            V[s] = min(h0, h1)
+    for i in range(num_states):
+        s = states[i]
+        h0 = (1 - discount) * rewards[s]
+        h1 = (1 - discount) * rewards[s]
+        for next_state in states:
+            h0 += traj_passive[s][next_state] * V[next_state]
+            h1 += traj_active[s][next_state] * V[next_state]
+        H0[i] = h0
+        H1[i] = h1
+    return np.subtract(H0, H1)
+
+@jit
+def binary_search(num_states,  traj_passive, traj_active, rewards, discount):
     range_left = 0.0
     range_right = 1.0
     indexes = []
@@ -143,7 +171,8 @@ def binary_search(num_states, P0, P1,  traj_passive, traj_active, rewards, disco
             # print(P0)
             # print(P1)
             # print(rewards)
-            diff = value_penalized(m, num_states, P0, P1, traj_passive, traj_active,  rewards, discount)
+            diff = value_penalized(m, num_states, traj_passive, traj_active,  rewards, discount)
+            # diff = value_penalized_fullob(m, num_states, traj_passive, traj_active, rewards, discount)
             # print("One Iter Time: " + str(time.time() - time_fun))
             if abs(diff[i]) < 1e-6:
                 break
@@ -153,7 +182,7 @@ def binary_search(num_states, P0, P1,  traj_passive, traj_active, rewards, disco
                 right = m
         indexes.append(m)
     print("Whittle Index Computing Time: " + str(time.time() - start_time))
-    print(indexes)
+    # print(indexes)
     return indexes
 
 import numpy as np
