@@ -2,6 +2,7 @@ import functools
 import numpy as np
 import random
 
+time_period_len = 52
 
 def policy_naive1(arms, budget):
     num = len(arms)
@@ -17,47 +18,111 @@ def policy_naive1(arms, budget):
 
 
 def policy_naive2(arms, budget, t, is_time_constrain=False):
-    t = t % 12
+    t = t % time_period_len 
     num = len(arms)
     actions = num * [0]
     probalities = []
     for arm in arms:
-        if is_time_constrain and not arm.is_in_action_win(t):
+        # if is_time_constrain and not (arm.is_in_action_win(t) and arm.need_action(t)):
+        if not (arm.is_in_action_win(t) and arm.need_action(t)):
             probalities.append(-1)
         else:
-            state_idx = arm.time_ext_states[arm.current_state][0]
-            probalities.append(arm.mix_states[state_idx][1])
+
+            probalities.append(arm.get_risk())
             # probalities.append(arm.mix_states[arm.current_state][1])
     probalities = np.array(probalities)
+    # print(probalities)
     indexes = np.argpartition(probalities, -budget)[-budget:]
     for index in indexes:
         actions[index] = 1
     return actions
 
-
-def policy_whittle(arms, budget, timestamp):
-    timestamp = timestamp % 12
+def policy_multipull(arms, budget, timestamp):
+    timestamp = timestamp % time_period_len 
     indices = []
     for arm in arms:
-        if arm.is_in_action_win(timestamp):
-            indices.append(arm.get_mix_index(timestamp))
-        else:
-            indices.append(-1)
+        # indices.append(arm.get_index(timestamp))
+        
+        indices.append(arm.get_index(timestamp))
+        
     index = np.argpartition(indices, - budget)[-budget:]
+
+
     rel = [0] * len(arms)
     for x in index:
         rel[x] = 1
     return rel
 
-
-def policy_whittle_win(arms, budget, timestamp):
-    timestamp = timestamp % 12
+def policy_whittle(arms, budget, timestamp):
+    timestamp = timestamp % time_period_len 
     indices = []
     for arm in arms:
+        # indices.append(arm.get_index(timestamp))
         if arm.is_in_action_win(timestamp):
             indices.append(arm.get_index(timestamp))
         else:
             indices.append(-1)
+
+    index = np.argpartition(indices, - budget)[-budget:]
+
+
+    rel = [0] * len(arms)
+    for x in index:
+        rel[x] = 1
+    return rel
+
+def policy_WIP(arms, budget, timestamp):
+    timestamp = timestamp % time_period_len
+    indices = []
+    for arm in arms:
+        
+        indices.append(arm.get_index(timestamp))
+ 
+
+
+    index = np.argpartition(indices, - budget)[-budget:]
+
+
+    rel = [0] * len(arms)
+    for x in index:
+        rel[x] = 1
+    return rel
+
+def policy_NO_WIN(arms, budget, timestamp):
+    timestamp = timestamp % time_period_len
+    indices = []
+
+    for arm in arms:
+        if arm.need_action(timestamp):
+            indices.append(arm.get_index(timestamp))
+        else:
+            indices.append(-1)
+
+
+
+    index = np.argpartition(indices, - budget)[-budget:]
+
+    # tmp = indices[index[0]]
+    # indices[index[0]] = -1
+    # if abs(max(indices) - tmp) < 1e-9:
+    #     idx = indices.index(max(indices))
+    #     if arms[idx].get_state() > arms[index[0]].get_state():
+    #         index = [idx]
+
+    rel = [0] * len(arms)
+    # print(indices)
+    for x in index:
+        rel[x] = 1
+        # arms[x].is_pulled = True
+    return rel
+
+def policy_whittle_win(arms, budget, timestamp):
+    timestamp = timestamp % time_period_len 
+    indices = []
+    for arm in arms:
+        
+        indices.append(arm.get_index(timestamp))
+       
     index = np.argpartition(indices, - budget)[-budget:]
     rel = [0] * len(arms)
     for x in index:
@@ -66,11 +131,11 @@ def policy_whittle_win(arms, budget, timestamp):
 
 
 def policy_random(arms, budget, t, is_time_constrain=False):
-    t = t % 12
+    t = t % time_period_len 
     if is_time_constrain:
         allowed_arms = []
         for i in range(len(arms)):
-            if arms[i].is_in_action_win(t):
+            if arms[i].is_in_action_win(t) and arms[i].need_action(t):
                 allowed_arms.append(i)
         rel = [0] * len(arms)
         if budget > len(allowed_arms):

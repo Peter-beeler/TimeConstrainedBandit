@@ -2,13 +2,13 @@ import numpy as np
 from decimal import *
 import time
 
-import pylab as p
+# import pylab as p
 from numba import jit
-from numba.core.errors import NumbaDeprecationWarning, NumbaPendingDeprecationWarning
-import warnings
+# from numba.core.errors import NumbaDeprecationWarning, NumbaPendingDeprecationWarning
+# import warnings
 
-warnings.simplefilter('ignore', category=NumbaDeprecationWarning)
-warnings.simplefilter('ignore', category=NumbaPendingDeprecationWarning)
+# warnings.simplefilter('ignore', category=NumbaDeprecationWarning)
+# warnings.simplefilter('ignore', category=NumbaPendingDeprecationWarning)
 
 getcontext().prec = 100
 delta = Decimal(1e-100)
@@ -92,6 +92,82 @@ delta = Decimal(1e-100)
 #     else:
 #         return False
 
+# @jit
+# def value_penalized(m, num_states, traj_passive, traj_active, rewards, discount=1):
+#     states = [i for i in range(num_states)]
+#     max_iter = 10000  # Maximum number of iterations
+#     V = np.zeros(num_states)
+#     H0 = np.zeros(num_states)
+#     H1 = np.zeros(num_states)
+#
+#     for i in range(max_iter):
+#         for s in states:
+#             h0 = 0
+#             h1 = 0
+#             next_state = traj_passive[s]
+#             h0 += (1 - discount) * (-1 * rewards[next_state])
+#             h0 += discount * V[next_state]
+#             next_state = traj_active[s]
+#             h1 += (1 - discount) * (-1 * rewards[next_state] + m)
+#             h1 += discount * V[next_state]
+#             V[s] = min(h0, h1)
+#     for i in range(num_states):
+#         s = states[i]
+#         h0 = 0
+#         h1 = 0
+#         next_state = traj_passive[s]
+#         h0 += (1 - discount) * (-1 * rewards[next_state])
+#         h0 += discount * V[next_state]
+#         next_state = traj_active[s]
+#         h1 += (1 - discount) * (-1 * rewards[next_state] + m)
+#         h1 += discount * V[next_state]
+#         H0[i] = h0
+#         H1[i] = h1
+#     return np.subtract(H0, H1)
+
+@jit
+def value_iter(num_states, traj_passive, traj_active, rewards, discount=1):
+    states = [i for i in range(num_states)]
+    max_iter = 10000  # Maximum number of iterations
+    V = np.zeros(num_states)
+    for i in range(max_iter):
+        for s in states:
+            v0 = 0
+            v1 = 0
+            next_state = traj_passive[s]
+            v0 += rewards[s] + discount * V[next_state]
+
+            next_state = traj_active[s]
+            v1 += rewards[s] -0.1999969482421875 + discount * V[next_state]
+
+            V[s] = max(v0, v1)
+
+
+    return V
+
+
+@jit
+def Q_final(curr, m, num_states, traj_passive, traj_active, rewards, discount=1):
+    states = [i for i in range(num_states)]
+    max_iter = 10000  # Maximum number of iterations
+    V = np.zeros(num_states)
+    for i in range(max_iter):
+        for s in states:
+            v0 = 0
+            v1 = 0
+            next_state = traj_passive[s]
+            v0 += rewards[s] + discount * V[next_state]
+
+            next_state = traj_active[s]
+            v1 += rewards[s] - m + discount * V[next_state]
+
+            V[s] = max(v0, v1)
+
+    q0 = rewards[curr] + V[traj_passive[curr]] * discount
+    q1 = rewards[curr] - m + V[traj_active[curr]] * discount
+    return q0, q1
+
+
 @jit
 def value_penalized(m, num_states, traj_passive, traj_active, rewards, discount=1):
     states = [i for i in range(num_states)]
@@ -111,6 +187,8 @@ def value_penalized(m, num_states, traj_passive, traj_active, rewards, discount=
             h1 += (1 - discount) * (-1 * rewards[next_state] + m)
             h1 += discount * V[next_state]
             V[s] = min(h0, h1)
+
+
     for i in range(num_states):
         s = states[i]
         h0 = 0
@@ -125,6 +203,40 @@ def value_penalized(m, num_states, traj_passive, traj_active, rewards, discount=
         H1[i] = h1
     return np.subtract(H0, H1)
 
+
+
+@jit
+def value_penalized_my(m, num_states, traj_passive, traj_active, rewards, discount=1):
+    states = [i for i in range(num_states)]
+    max_iter = 10000  # Maximum number of iterations
+    V = np.zeros(num_states)
+    H0 = np.zeros(num_states)
+    H1 = np.zeros(num_states)
+
+    for i in range(max_iter):
+        for s in states:
+            v0 = 0
+            v1 = 0
+            next_state = traj_passive[s]
+            v0 += rewards[s] + discount * V[next_state]
+
+            next_state = traj_active[s]
+            v1 += rewards[s] - m + discount * V[next_state]
+
+            V[s] = max(v0, v1)
+
+
+    for i in range(num_states):
+        s = states[i]
+        h0 = 0
+        h1 = 0
+        next_state = traj_passive[s]
+        h0 += rewards[s] + discount * V[next_state]
+        next_state = traj_active[s]
+        h1 += rewards[s] -m + discount * V[next_state]
+        H0[i] = h0
+        H1[i] = h1
+    return np.subtract(H0, H1)
 
 @jit
 def value_penalized_fullob(m, num_states, traj_passive, traj_active, rewards, discount=1):
@@ -153,35 +265,140 @@ def value_penalized_fullob(m, num_states, traj_passive, traj_active, rewards, di
         H1[i] = h1
     return np.subtract(H0, H1)
 
+
 @jit
+def value_penalized_fullobtimed(m, num_states, traj_passive, traj_active, rewards, discount=1):
+    states = [i for i in range(num_states)]
+    max_iter = 10000  # Maximum number of iterations
+    V = np.zeros(num_states)
+
+    H0 = np.zeros(num_states)
+    H1 = np.zeros(num_states)
+
+    for i in range(max_iter):
+        for s in states:
+            h0 = (1 - discount) * rewards[s]
+            h1 = (1 - discount) * rewards[s]
+            for next_state in states:
+                h0 += traj_passive[s][next_state] * V[next_state]
+                h1 += traj_active[s][next_state] * V[next_state]
+            V[s] = min(h0, h1)
+
+    for i in range(num_states):
+        s = states[i]
+        h0 = (1 - discount) * rewards[s]
+        h1 = (1 - discount) * rewards[s]
+        for next_state in states:
+            h0 += traj_passive[s][next_state] * V[next_state]
+            h1 += traj_active[s][next_state] * V[next_state]
+        H0[i] = h0
+        H1[i] = h1
+    return np.subtract(H0, H1)
+
+import markovianbandit
+def WhittleIndex_PKG(num_states,  traj_passive, traj_active, rewards, discount):
+    P0 = [[0 for i in range(num_states)] for j in range(num_states)]
+    P1 = [[0 for i in range(num_states)] for j in range(num_states)]
+    for i in range(num_states):
+        next_state = traj_passive[i]
+        P0[i][next_state] = 1
+        next_state = traj_active[i]
+        P1[i][next_state] = 1
+    bandit = markovianbandit.restless_bandit_from_P0P1_R0R1(P0, P1, rewards, rewards)
+    indices = bandit.whittle_indices(discount=discount)
+    return np.nan_to_num(indices, nan=-999)
+
+from numba import types
+from numba.typed import Dict
+@jit(nopython=True)
 def binary_search(num_states,  traj_passive, traj_active, rewards, discount):
     range_left = 0.0
-    range_right = 1.0
-    indexes = []
-    start_time = time.time()
+    range_right = 10
+    indexes = [-999.0] * num_states
+
     m = 0.0
+    dict_m = Dict.empty(
+        key_type=types.float64,
+        value_type=types.float64[:],
+    )
+
+    # test_time = time.time()
+    # diff = value_penalized(m, num_states, traj_passive, traj_active, rewards, discount)
+    # print("one iter time:" + str(time.time() - test_time))
     for i in range(num_states):
-        left = m
+        # print("Computing state " + str(i))
+        left = 0
         right = range_right
         while (1):
             if left >= right or abs(left - right) < 1e-6:
                 break
             m = (left + right) / 2
-            # time_fun = time.time()
-            # print(P0)
-            # print(P1)
-            # print(rewards)
-            diff = value_penalized(m, num_states, traj_passive, traj_active,  rewards, discount)
-            # diff = value_penalized_fullob(m, num_states, traj_passive, traj_active, rewards, discount)
-            # print("One Iter Time: " + str(time.time() - time_fun))
+
+            key = round(m, 6)
+            if not (key in dict_m):
+                dict_m[key] = value_penalized(m, num_states, traj_passive, traj_active,  rewards, discount)
+            diff = dict_m[key]
+
+            # diff = value_penalized(m, num_states, traj_passive, traj_active,  rewards, discount)
             if abs(diff[i]) < 1e-6:
                 break
             if diff[i] > 0:
                 left = m
             else:
                 right = m
+        indexes[i] = m
+    # print("Num of states: " + str(num_states))
+    # print("Whittle Index Computing Time: " + str(time.time() - start_time))
+    # print(indexes)
+    return indexes
+
+# @jit
+# def binary_search(num_states,  traj_passive, traj_active, rewards, discount):
+    range_left = 0.0
+    range_right = 1.0
+    indexes = []
+    # start_time = time.time()
+    m = 0.0
+    dict_m = {}
+
+    # test_time = time.time()
+    # diff = value_penalized(m, num_states, traj_passive, traj_active, rewards, discount)
+    # print("one iter time:" + str(time.time() - test_time))
+    for i in range(0, num_states):
+        # print("loop")
+    # for i in [6]:
+        # print("Computing state " + str(i))
+        left = 0
+        right = range_right
+        while (1):
+            if left >= right:
+                # print("left >= right break")
+                break
+            if abs(left - right) < 1e-12:
+                break
+            m = (left + right) / 2
+            #
+            key = round(m, 6)
+            if not (key in dict_m.keys()):
+                dict_m[key] = value_penalized(m, num_states, traj_passive, traj_active,  rewards, discount)
+            diff = dict_m[key]
+
+            # diff = value_penalized(m, num_states, traj_passive, traj_active,  rewards, discount)
+            if abs(diff[i]) < 1e-9:
+                # print(m)
+                # print(diff[i])
+                # print("diff break")
+                break
+            if diff[i] > 0:
+                left = m
+            else:
+                right = m
+            # print(m)
+            # print(diff[i])
         indexes.append(m)
-    print("Whittle Index Computing Time: " + str(time.time() - start_time))
+    # print(indexes)
+    # print("Num of states: " + str(num_states))
+    # print("Whittle Index Computing Time: " + str(time.time() - start_time))
     # print(indexes)
     return indexes
 
